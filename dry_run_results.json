@@ -1,0 +1,16 @@
+[
+  {
+    "obligation_id": 3,
+    "expected": "Yes",
+    "actual": "No",
+    "reason": "The obligation requires full remedy through modifications, while the relevant clauses allow for alternatives like securing rights, which does not guarantee the necessary modifications.",
+    "pass": false
+  },
+  {
+    "obligation_id": 4,
+    "expected": "No",
+    "actual": "No",
+    "reason": "The obligation requires securing continued use rights and replacing with non-infringing products, but the relevant clauses allow for reimbursement, which is a non-compliance.",
+    "pass": true
+  }
+]

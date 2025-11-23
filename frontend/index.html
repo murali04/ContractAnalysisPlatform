@@ -1,0 +1,597 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract Intelligence | Enterprise Suite</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+
+    <!-- Prop Types -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+
+    <!-- Lucide Icons (Latest UMD) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            /* Indigo 600 */
+            --primary-dark: #4338ca;
+            /* Indigo 700 */
+            --secondary: #64748b;
+            /* Slate 500 */
+            --bg-body: #f8fafc;
+            /* Slate 50 */
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            /* Slate 900 */
+            --text-muted: #64748b;
+            /* Slate 500 */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Glass Effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root" class="h-screen w-screen flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, RadialBarChart, RadialBar } = Recharts;
+
+        // --- Icon Component (Robust & Fallback) ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const [svgHtml, setSvgHtml] = useState(null);
+            const [error, setError] = useState(false);
+
+            useEffect(() => {
+                if (window.lucide && window.lucide.icons && window.lucide.icons[name]) {
+                    try {
+                        const iconDef = window.lucide.icons[name];
+                        const svg = iconDef.toSvg({
+                            width: size,
+                            height: size,
+                            class: className,
+                            "stroke-width": 2
+                        });
+                        setSvgHtml(svg);
+                    } catch (e) {
+                        console.error(`Failed to render icon ${name}:`, e);
+                        setError(true);
+                    }
+                } else {
+                    const timer = setTimeout(() => {
+                        if (!window.lucide || !window.lucide.icons || !window.lucide.icons[name]) {
+                            setError(true);
+                        }
+                    }, 1000);
+                    return () => clearTimeout(timer);
+                }
+            }, [name, size, className]);
+
+            if (error) {
+                return <span className={`inline-flex items-center justify-center bg-slate-200 text-slate-500 font-bold text-[10px] rounded ${className}`} style={{ width: size, height: size }} title={name}>{name.charAt(0)}</span>;
+            }
+
+            if (!svgHtml) return <span className="inline-block bg-slate-200 rounded animate-pulse" style={{ width: size, height: size }}></span>;
+
+            return <span dangerouslySetInnerHTML={{ __html: svgHtml }} className="inline-flex items-center justify-center" />;
+        };
+
+        // --- UI Components ---
+
+        const StatCard = ({ title, value, iconName, trend, colorClass, trendColor }) => (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-shadow duration-300 group">
+                <div>
+                    <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">{title}</p>
+                    <h3 className="text-3xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{value}</h3>
+                    {trend && <p className={`text-xs ${trendColor} mt-2 font-medium flex items-center gap-1`}><Icon name="TrendingUp" size={14} /> {trend}</p>}
+                </div>
+                <div className={`p-3 rounded-lg ${colorClass} bg-opacity-10 text-opacity-100 group-hover:scale-110 transition-transform`}>
+                    <Icon name={iconName} size={24} className={colorClass.replace('bg-', 'text-')} />
+                </div>
+            </div>
+        );
+
+        const StatusBadge = ({ status }) => {
+            const config = {
+                'Yes': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'COMPLIANT' },
+                'No': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', label: 'NON-COMPLIANT' }
+            };
+            const style = config[status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', label: status };
+
+            return (
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${style.bg} ${style.text} ${style.border} tracking-wide`}>
+                    {style.label}
+                </span>
+            );
+        };
+
+        // --- Main Application ---
+
+        const App = () => {
+            const [isSystemReady, setIsSystemReady] = useState(false);
+            const [viewMode, setViewMode] = useState('upload'); // upload, dashboard, analysis
+            const [files, setFiles] = useState({ obligations: null, contract: null });
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analysisData, setAnalysisData] = useState(null);
+            const [selectedObligation, setSelectedObligation] = useState(null);
+            const [activeTab, setActiveTab] = useState('details');
+
+            useEffect(() => {
+                let attempts = 0;
+                const checkDependencies = setInterval(() => {
+                    attempts++;
+                    if (window.lucide) {
+                        setIsSystemReady(true);
+                        clearInterval(checkDependencies);
+                    } else if (attempts > 30) {
+                        console.warn("Lucide icons failed to load. Proceeding without icons.");
+                        setIsSystemReady(true);
+                        clearInterval(checkDependencies);
+                    }
+                }, 100);
+                return () => clearInterval(checkDependencies);
+            }, []);
+
+            const handleAnalyze = async () => {
+                if (!files.obligations || !files.contract) return;
+                setIsAnalyzing(true);
+
+                const formData = new FormData();
+                formData.append('obligations_file', files.obligations);
+                formData.append('contract_file', files.contract);
+
+                try {
+                    const response = await fetch('/api/analyze', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        setAnalysisData(data);
+                        if (data.results.length > 0) setSelectedObligation(data.results[0]);
+                        setViewMode('dashboard');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Analysis failed. Please ensure the backend is running.");
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            const metrics = useMemo(() => {
+                if (!analysisData) return null;
+                const total = analysisData.results.length;
+                const compliant = analysisData.results.filter(r => r.is_present === 'Yes').length;
+                const nonCompliant = analysisData.results.filter(r => r.is_present === 'No').length;
+                const score = Math.round((compliant / total) * 100) || 0;
+
+                // Status Distribution Data (Fact-based)
+                const statusData = [
+                    { name: 'Compliant', value: compliant, fill: '#10b981' },
+                    { name: 'Non-Compliant', value: nonCompliant, fill: '#f43f5e' }
+                ];
+
+                // Radial Data
+                const radialData = [
+                    { name: 'Score', value: score, fill: '#4f46e5' }
+                ];
+
+                return { total, compliant, nonCompliant, score, statusData, radialData };
+            }, [analysisData]);
+
+            // --- Loading Screen ---
+            if (!isSystemReady) {
+                return (
+                    <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
+                        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-slate-500 text-sm font-medium">Initializing Application...</p>
+                    </div>
+                );
+            }
+
+            if (isAnalyzing) {
+                return (
+                    <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
+                        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                        <h2 className="text-xl font-bold text-slate-800">Analyzing Contract</h2>
+                        <p className="text-slate-500 mt-2">Processing obligations and extracting intelligence...</p>
+                    </div>
+                );
+            }
+
+            // --- Upload View ---
+            if (viewMode === 'upload') {
+                return (
+                    <div className="h-screen w-screen flex bg-slate-50">
+                        <div className="w-1/2 bg-indigo-600 flex flex-col justify-center p-20 text-white relative overflow-hidden">
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                            <div className="relative z-10">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/30 mb-6">
+                                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                                    <span className="text-xs font-semibold tracking-wide">v2.5 Enterprise</span>
+                                </div>
+                                <h1 className="text-5xl font-bold mb-6 leading-tight">Contract Intelligence <br />Platform</h1>
+                                <p className="text-indigo-100 text-lg max-w-md leading-relaxed">
+                                    Automated compliance verification powered by advanced RAG technology. Upload your documents to begin.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-1/2 flex items-center justify-center p-12">
+                            <div className="w-full max-w-md bg-white p-10 rounded-2xl shadow-xl border border-slate-100">
+                                <h2 className="text-2xl font-bold text-slate-800 mb-2">New Analysis</h2>
+                                <p className="text-slate-500 text-sm mb-8">Upload your obligations checklist and contract file.</p>
+
+                                <div className="space-y-4 mb-8">
+                                    <div onClick={() => document.getElementById('ob-file').click()}
+                                        className={`cursor-pointer p-5 border-2 border-dashed rounded-xl transition-all group ${files.obligations ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 rounded-lg ${files.obligations ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400 group-hover:text-indigo-500'}`}>
+                                                <Icon name="List" size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-slate-700">{files.obligations ? files.obligations.name : "Obligations Checklist"}</h3>
+                                                <p className="text-xs text-slate-400">Supported: .CSV, .XLSX</p>
+                                            </div>
+                                            {files.obligations && <Icon name="CheckCircle" size={20} className="text-emerald-500 ml-auto" />}
+                                        </div>
+                                        <input id="ob-file" type="file" hidden accept=".csv,.xlsx" onChange={e => setFiles({ ...files, obligations: e.target.files[0] })} />
+                                    </div>
+
+                                    <div onClick={() => document.getElementById('con-file').click()}
+                                        className={`cursor-pointer p-5 border-2 border-dashed rounded-xl transition-all group ${files.contract ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 rounded-lg ${files.contract ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400 group-hover:text-indigo-500'}`}>
+                                                <Icon name="FileText" size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-slate-700">{files.contract ? files.contract.name : "Contract Document"}</h3>
+                                                <p className="text-xs text-slate-400">Supported: .PDF, .DOCX, .TXT</p>
+                                            </div>
+                                            {files.contract && <Icon name="CheckCircle" size={20} className="text-emerald-500 ml-auto" />}
+                                        </div>
+                                        <input id="con-file" type="file" hidden accept=".pdf,.docx,.txt" onChange={e => setFiles({ ...files, contract: e.target.files[0] })} />
+                                    </div>
+                                </div>
+
+                                <button onClick={handleAnalyze} disabled={!files.obligations || !files.contract}
+                                    className={`w-full py-4 rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg ${files.obligations && files.contract ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'}`}>
+                                    Start Analysis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- Dashboard & Analysis Layout ---
+            return (
+                <div className="flex h-screen bg-slate-50">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20">
+                        <div className="h-16 flex items-center px-6 border-b border-slate-100">
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white mr-3">
+                                <Icon name="ShieldCheck" size={18} />
+                            </div>
+                            <span className="font-bold text-slate-800 text-lg">ContractIntel</span>
+                        </div>
+
+                        <nav className="flex-1 py-6 px-3 space-y-1">
+                            <button onClick={() => setViewMode('dashboard')}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                <Icon name="LayoutDashboard" size={18} /> Dashboard
+                            </button>
+                            <button onClick={() => setViewMode('analysis')}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'analysis' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                <Icon name="FileSearch" size={18} /> Detailed Analysis
+                            </button>
+                        </nav>
+
+                        <div className="p-4 border-t border-slate-100">
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">JD</div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">John Doe</p>
+                                        <p className="text-[10px] text-slate-500">Legal Analyst</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => window.location.reload()} className="w-full py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded hover:bg-slate-50">
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+                            <h2 className="text-xl font-bold text-slate-800">{viewMode === 'dashboard' ? 'Executive Dashboard' : 'Deep Analysis'}</h2>
+                            <div className="flex items-center gap-4">
+                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">Session ID: {Math.random().toString(36).substr(2, 8).toUpperCase()}</span>
+                                <button className="p-2 text-slate-400 hover:text-slate-600"><Icon name="Bell" size={20} /></button>
+                                <button className="p-2 text-slate-400 hover:text-slate-600"><Icon name="Settings" size={20} /></button>
+                            </div>
+                        </header>
+
+                        {/* Dashboard View (Redesigned) */}
+                        {viewMode === 'dashboard' && (
+                            <main className="flex-1 overflow-y-auto p-8 fade-in">
+                                <div className="max-w-7xl mx-auto">
+                                    {/* Top Metrics Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                        <StatCard title="Total Obligations" value={metrics.total} iconName="List" colorClass="bg-slate-500" />
+                                        <StatCard title="Critical Risks" value={metrics.nonCompliant} iconName="AlertTriangle" trend="-2" colorClass="bg-rose-500" trendColor="text-emerald-600" />
+                                        <StatCard title="Compliant Items" value={metrics.compliant} iconName="CheckCircle" trend="+5" colorClass="bg-emerald-500" trendColor="text-emerald-600" />
+                                    </div>
+
+                                    {/* Charts Row */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                        {/* Overall Score Gauge */}
+                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 h-[300px] flex flex-col items-center justify-center relative">
+                                            <h3 className="absolute top-4 left-4 text-lg font-bold text-slate-800">Overall Health</h3>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" barSize={20} data={metrics.radialData} startAngle={180} endAngle={0}>
+                                                    <RadialBar minAngle={15} label={{ position: 'insideStart', fill: '#fff' }} background clockWise dataKey="value" cornerRadius={10} />
+                                                    <Legend iconSize={10} layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ right: 0 }} />
+                                                    <Tooltip />
+                                                </RadialBarChart>
+                                            </ResponsiveContainer>
+                                            <div className="absolute bottom-8 flex flex-col items-center">
+                                                <span className="text-4xl font-bold text-indigo-600">{metrics.score}%</span>
+                                                <span className="text-xs text-slate-500 font-medium">Compliance Score</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Status Distribution Chart */}
+                                        <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100 h-[300px]">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-4">Compliance Status Distribution</h3>
+                                            <ResponsiveContainer width="100%" height="85%">
+                                                <BarChart data={metrics.statusData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" />
+                                                    <YAxis allowDecimals={false} />
+                                                    <Tooltip cursor={{ fill: '#f1f5f9' }} />
+                                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                        {metrics.statusData.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <button onClick={() => setViewMode('analysis')}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition-all flex items-center gap-2">
+                                            View Detailed Analysis <Icon name="ArrowRight" size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </main>
+                        )}
+
+                        {/* Analysis View (Resized Layout) */}
+                        {viewMode === 'analysis' && (
+                            <main className="flex-1 flex overflow-hidden fade-in bg-slate-50">
+                                {/* List (Narrower) */}
+                                <div className="w-[20%] min-w-[250px] bg-white border-r border-slate-200 flex flex-col">
+                                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Obligations</h3>
+                                        <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">{analysisData.results.length}</span>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto">
+                                        {analysisData.results.map((res, idx) => (
+                                            <div key={idx} onClick={() => setSelectedObligation(res)}
+                                                className={`p-4 border-b border-slate-100 cursor-pointer transition-colors ${selectedObligation === res ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50 border-l-4 border-l-transparent'}`}>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <StatusBadge status={res.is_present} />
+                                                    <span className="text-[10px] font-medium text-slate-400">{res.confidence}%</span>
+                                                </div>
+                                                <p className={`text-xs font-medium leading-snug line-clamp-3 ${selectedObligation === res ? 'text-indigo-900' : 'text-slate-600'}`}>
+                                                    {res.obligation}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Preview (Wider - Flex 1) */}
+                                <div className="flex-1 bg-slate-100 flex flex-col relative border-r border-slate-200">
+                                    <div className="h-10 bg-white border-b border-slate-200 flex justify-between items-center px-4 shadow-sm z-10">
+                                        <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Icon name="FileText" size={14} /> Document Preview</span>
+                                        <a href={analysisData.contract_url} target="_blank" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium">
+                                            Open Original <Icon name="ExternalLink" size={12} />
+                                        </a>
+                                    </div>
+                                    <div className="flex-1 relative">
+                                        {analysisData.contract_url && analysisData.contract_url.toLowerCase().endsWith('.pdf') ? (
+                                            <iframe src={`${analysisData.contract_url}#page=${selectedObligation?.page || 1}`} className="w-full h-full border-none" title="Contract Preview"></iframe>
+                                        ) : (
+                                            <div className="absolute inset-0 overflow-y-auto p-8 bg-white text-slate-700 font-mono text-sm leading-relaxed whitespace-pre-wrap shadow-inner">
+                                                {analysisData.full_text || "No text content available."}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Details (Slightly Narrower) */}
+                                <div className="w-[25%] min-w-[300px] bg-white flex flex-col shadow-xl z-20">
+                                    {selectedObligation ? (
+                                        <>
+                                            <div className="p-6 border-b border-slate-100">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <StatusBadge status={selectedObligation.is_present} />
+                                                    <span className="text-xs text-slate-400 font-mono">ID: {Math.random().toString(36).substr(2, 6).toUpperCase()}</span>
+                                                </div>
+                                                <h2 className="text-md font-bold text-slate-800 leading-snug">{selectedObligation.obligation}</h2>
+                                            </div>
+
+                                            <div className="flex border-b border-slate-100">
+                                                {['details', 'evidence', 'suggestions'].map(tab => (
+                                                    <button key={tab} onClick={() => setActiveTab(tab)}
+                                                        className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === tab ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+                                                        {tab}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                                                {activeTab === 'details' && (
+                                                    <div className="space-y-6 fade-in">
+                                                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                                                            <h4 className="text-xs font-bold text-indigo-600 uppercase mb-3 flex items-center gap-2"><Icon name="Cpu" size={14} /> Analysis Reasoning</h4>
+                                                            <p className="text-sm text-slate-600 leading-relaxed">{selectedObligation.reason}</p>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 text-center">
+                                                                <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Similarity Score</p>
+                                                                <p className="text-2xl font-bold text-slate-800">{selectedObligation.similarity_score}</p>
+                                                            </div>
+                                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 text-center">
+                                                                <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Keywords Matched</p>
+                                                                <p className="text-2xl font-bold text-slate-800">{selectedObligation.keyword_hits.length}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeTab === 'evidence' && (
+                                                    <div className="space-y-4 fade-in">
+                                                        {selectedObligation.supporting_clauses && selectedObligation.supporting_clauses.length > 0 ? (
+                                                            selectedObligation.supporting_clauses.map((clause, i) => (
+                                                                <div key={i} className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500">
+                                                                    <div className="flex justify-between mb-2">
+                                                                        <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Clause Reference {i + 1}</span>
+                                                                    </div>
+                                                                    <p className="text-sm text-slate-600 italic leading-relaxed">"{clause}"</p>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="text-center py-12 text-slate-400 text-sm flex flex-col items-center">
+                                                                <Icon name="FileX" size={32} className="mb-3 opacity-50" />
+                                                                No direct evidence found in the document.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {activeTab === 'suggestions' && (
+                                                    <div className="fade-in">
+                                                        {selectedObligation.suggestion ? (
+                                                            <div className="bg-amber-50 p-5 rounded-xl border border-amber-100">
+                                                                <h4 className="text-xs font-bold text-amber-600 uppercase mb-3 flex items-center gap-2"><Icon name="Lightbulb" size={14} /> Recommendation</h4>
+                                                                <p className="text-sm text-amber-800 leading-relaxed">{selectedObligation.suggestion}</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center py-12 text-slate-400 text-sm flex flex-col items-center">
+                                                                <Icon name="CheckCircle" size={32} className="mb-3 text-emerald-500 opacity-50" />
+                                                                Obligation is fully compliant. No action needed.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                                <Icon name="MousePointerClick" size={24} className="text-slate-300" />
+                                            </div>
+                                            <h3 className="text-slate-600 font-semibold mb-1">No Selection</h3>
+                                            <p className="text-xs max-w-[200px]">Select an obligation from the list to view detailed analysis and evidence.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </main>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
