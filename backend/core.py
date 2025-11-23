@@ -22,7 +22,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
-# Initialize globals (lazy loading could be better for startup time, but keeping simple for now)
+# Initialize globals
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 embedder = OpenAIEmbeddings(model="text-embedding-3-small")
 kw_model = KeyBERT()
